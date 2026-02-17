@@ -1,6 +1,6 @@
-	pyTelegramBotAPI
-	cloudscraper
-	beautifulsoup4
-	requests
-	#pymongo[srv]
-	python-dotenv
+pyTelegramBotAPI
+cloudscraper
+beautifulsoup4
+requests
+#pymongo[srv]
+python-dotenv
