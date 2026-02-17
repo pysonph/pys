@@ -12,4 +12,4 @@
 	
 	COPY . .
 	
-	CMD ["python", "main.py"]
+	CMD ["python", "pys.py"]
