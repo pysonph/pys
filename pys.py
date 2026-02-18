@@ -8,6 +8,7 @@ import json
 import time
 from dotenv import load_dotenv
 import threading
+import random
 
 # ==========================================
 # 📌 ENVIRONMENT VARIABLES
