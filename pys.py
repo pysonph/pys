@@ -849,7 +849,7 @@ def handle_direct_buy(message):
                 final_used_balance = initial_used_balance - total_price
                 
                 # Report တည်ဆောက်ပုံ ပြန်ပြင်ထားပါတယ်
-                report = f"msc {game_id} ({zone_id}) {item_input}\n"
+                #report = f"msc {game_id} ({zone_id}) {item_input}\n"
                 report += "```\n"
                 report += "=== ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ʀᴇᴘᴏʀᴛ ===\n\n"
                 report += "ᴏʀᴅᴇʀ sᴛᴀᴛᴜs: ✅ Sᴜᴄᴄᴇss\n"
@@ -953,7 +953,6 @@ def handle_mcc_buy(message):
                 date_str = now.strftime("%m/%d/%Y, %I:%M:%S %p")
                 final_used_balance = initial_used_balance - total_price
                 
-                report = f"mcc {game_id} ({zone_id}) {item_input}\n"
                 report += "```\n"
                 report += "=== ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ʀᴇᴘᴏʀᴛ ===\n\n"
                 report += "ᴏʀᴅᴇʀ sᴛᴀᴛᴜs: ✅ Sᴜᴄᴄᴇss\n"
