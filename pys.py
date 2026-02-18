@@ -8,7 +8,6 @@ import json
 import time
 from dotenv import load_dotenv
 import threading
-import random
 
 # ==========================================
 # 📌 ENVIRONMENT VARIABLES
@@ -36,12 +35,12 @@ DB_FILE = 'database.json'
 
 def load_data():
     if not os.path.exists(DB_FILE):
-        return {"users": [OWNER_ID], "cookie": "PHPSESSID=lq4lhm55ohim3h7om5hin83umi"}
+        return {"users": [OWNER_ID], "cookie": "PHPSESSID=ad910q8i87smccj3vbtq8tnuce"}
     try:
         with open(DB_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception:
-        return {"users": [OWNER_ID], "cookie": "PHPSESSID=lq4lhm55ohim3h7om5hin83umi"}
+        return {"users": [OWNER_ID], "cookie": "PHPSESSID=ad910q8i87smccj3vbtq8tnuce"}
 
 def save_data(data):
     try:
@@ -76,6 +75,7 @@ BR_PACKAGES = {
     '86': [{'pid': '13', 'price': 61.5, 'name': '86 💎'}],
     '172': [{'pid': '23', 'price': 122.00, 'name': '172 💎'}],
     '257': [{'pid': '25', 'price': 177.5, 'name': '257 💎'}],
+    '279': [{'pid': '25', 'price': 177.5, 'name': '257 💎'}, {'pid': '213', 'price': 19.0, 'name': '22 💎'}],
     '706': [{'pid': '26', 'price': 480.00, 'name': '706 💎'}],
     '2195': [{'pid': '27', 'price': 1453.00, 'name': '2195 💎'}],
     '3688': [{'pid': '28', 'price': 2424.00, 'name': '3688 💎'}],
@@ -706,7 +706,7 @@ def handle_direct_buy(message):
                 
             items_to_buy = active_packages[item_input]
             
-            loading_msg = bot.reply_to(message, f"⏳ `msc {game_id} ({zone_id}) {item_input}` အတွက် Order တင်နေပါသည်...", parse_mode="Markdown")
+            loading_msg = bot.reply_to(message, f"Pʀᴏᴄᴇss.....")
             
             order_ids_str = ""
             total_price = 0.0
@@ -733,9 +733,12 @@ def handle_direct_buy(message):
                     
                     success_count += 1
                     total_price += item_price
-                    seen_order_ids.append(result['order_id']) # အောင်မြင်သွားတဲ့ ID ကို မှတ်ထားမည်
                     
-                        
+                    # ✅ Order ID ကို ` (backtick) ဖြင့် ရေးပေးခြင်းဖြင့် ထိတာနဲ့ Copy ကူးနိုင်မည်
+                    new_id = result['order_id']
+                    seen_order_ids.append(new_id)
+                    order_ids_str += f"`{new_id}`\n" 
+                    
                     time.sleep(random.randint(5, 8)) 
                 else:
                     fail_count += 1
@@ -752,7 +755,7 @@ def handle_direct_buy(message):
                 report += "ᴏʀᴅᴇʀ sᴛᴀᴛᴜs: ✅ Sᴜᴄᴄᴇss\n"
                 report += f"ɢᴀᴍᴇ ɪᴅ: {game_id} {zone_id}\n"
                 report += f"ɪɢ ɴᴀᴍᴇ: {ig_name}\n"
-                report += f"ᴏʀᴅᴇʀ ɪᴅ:\n{order_ids_str}"
+                report += f"sᴇʀɪᴀʟ:\n{order_ids_str}"
                 report += f"ɪᴛᴇᴍ: {item_input} 💎\n"
                 report += f"ᴛᴏᴛᴀʟ ᴀᴍᴏᴜɴᴛ: {total_price:.2f} 🪙\n\n"
                 report += f"ᴅᴀᴛᴇ: {date_str}\n"
@@ -762,7 +765,8 @@ def handle_direct_buy(message):
                 report += f"ғɪɴᴀʟ ʙᴀʟᴀɴᴄᴇ ({currency_name}): ${final_used_balance:,.2f}\n\n"
                 report += f"Sᴜᴄᴄᴇss {success_count} / Fᴀɪʟ {fail_count}" 
 
-                bot.edit_message_text(chat_id=message.chat.id, message_id=loading_msg.message_id, text=report)
+                # ✅ Markdown format ကို ဖွင့်ပေးထားလို့ ` ` ကြားကစာတွေ ထိတာနဲ့ Copy ရပါမည်
+                bot.edit_message_text(chat_id=message.chat.id, message_id=loading_msg.message_id, text=report, parse_mode="Markdown")
                 
                 if fail_count > 0:
                     bot.reply_to(message, f"⚠️ အချို့သာ အောင်မြင်ပါသည်။\nError: {error_msg}")
@@ -771,6 +775,7 @@ def handle_direct_buy(message):
 
     except Exception as e:
         bot.reply_to(message, f"System Error: {str(e)}")
+
 
 
 # ==========================================
