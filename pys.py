@@ -749,7 +749,7 @@ def handle_check_role(message):
                         value = td.get_text(strip=True)
                         if 'region id' in header or 'region' in header:
                             pizzo_region = value
-        except Exception e:
+        except Exception as e:
             pass 
 
         final_region = pizzo_region if pizzo_region != "Unknown" else smile_region
