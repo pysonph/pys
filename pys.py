@@ -734,7 +734,7 @@ def handle_direct_buy(message):
                     success_count += 1
                     total_price += item_price
                     seen_order_ids.append(result['order_id']) # အောင်မြင်သွားတဲ့ ID ကို မှတ်ထားမည်
-                    order_ids_str += f"`{result['order_id']}`\n"
+                    
                         
                     time.sleep(random.randint(5, 8)) 
                 else:
