@@ -149,13 +149,12 @@ def get_smile_balance(scraper, headers, balance_url='https://www.smile.one/custo
     return balances
 
 # ==========================================
-# 3. SMILE.ONE SCRAPER FUNCTION (WITH CHECKROLE UPGRADE FOR TOPUP)
+# 3. SMILE.ONE SCRAPER FUNCTION (WITH BALANCE PRE-CHECK)
 # ==========================================
-def process_smile_one_order(user_id, zone_id, product_id, currency_name):
+def process_smile_one_order(user_id, zone_id, product_id, currency_name, item_price, seen_order_ids):
     scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
     scraper.cookies.update(get_login_cookies())
 
-    # 🌟 Currency (Region) အပေါ်မူတည်ပြီး checkrole API လင့်ခ်များကို ခွဲခြားသတ်မှတ်ခြင်း
     if currency_name == 'PH':
         main_url = 'https://www.smile.one/ph/merchant/mobilelegends'
         checkrole_url = 'https://www.smile.one/ph/merchant/mobilelegends/checkrole'
@@ -180,12 +179,10 @@ def process_smile_one_order(user_id, zone_id, product_id, currency_name):
 
     try:
         response = scraper.get(main_url, headers=headers)
-        
-        if response.status_code in [403, 503] or "cloudflare" in response.text.lower() or "security verification" in response.text.lower():
-             return {"status": "error", "message": "⚠️ Cloudflare လုံခြုံရေးမှ Bot အား Block ထားပါသည်။ Browser မှ Cookie အသစ် ပြန်ယူထည့်ပါ။"}
+        if response.status_code in [403, 503] or "cloudflare" in response.text.lower():
+             return {"status": "error", "message": "⚠️ Cloudflare လုံခြုံရေးမှ Bot အား Block ထားပါသည်။"}
 
         soup = BeautifulSoup(response.text, 'html.parser')
-        
         csrf_token = None
         meta_tag = soup.find('meta', {'name': 'csrf-token'})
         if meta_tag: csrf_token = meta_tag.get('content')
@@ -195,52 +192,33 @@ def process_smile_one_order(user_id, zone_id, product_id, currency_name):
 
         if not csrf_token: return {"status": "error", "message": "CSRF Token ရှာမတွေ့ပါ။ /setcookie ဖြင့် Cookie အသစ်ထည့်ပါ။"}
 
-        # 🌟 ငွေမချေခင် ID အရင်မှန်မမှန် Check Role ဖြင့် စစ်ဆေးခြင်း
-        check_data = {
-            'user_id': user_id, 
-            'zone_id': zone_id, 
-            '_csrf': csrf_token
-        }
-        
+        # 🌟 (၁) Balance အရင် လုံလောက်မှု ရှိမရှိ စစ်ဆေးခြင်း
+        current_balances = get_smile_balance(scraper, headers, balance_url)
+        balance_key = 'ph_balance' if currency_name == 'PH' else 'br_balance'
+        if current_balances.get(balance_key, 0.0) < float(item_price):
+            return {"status": "error", "message": f"Balance မလုံလောက်ပါ။ (လိုအပ်ငွေ: {item_price} | လက်ကျန်: {current_balances.get(balance_key, 0.0)})"}
+
+        # Check Role...
+        check_data = {'user_id': user_id, 'zone_id': zone_id, '_csrf': csrf_token}
         role_response = scraper.post(checkrole_url, data=check_data, headers=headers)
         try:
             role_result = role_response.json()
             ig_name = role_result.get('username') or role_result.get('data', {}).get('username')
             if not ig_name or str(ig_name).strip() == "":
-                real_error = role_result.get('msg') or role_result.get('message') or "အကောင့်ရှာမတွေ့ပါ။"
-                return {"status": "error", "message": f"❌ အကောင့် မှားယွင်းနေပါသည်: {real_error}"}
+                return {"status": "error", "message": "❌ အကောင့် ရှာမတွေ့ပါ။"}
         except Exception:
-            return {"status": "error", "message": "⚠️ Check Role API Error: အကောင့်စစ်ဆေး၍မရပါ။"}
-        # -----------------------------------------------------------
+            return {"status": "error", "message": "⚠️ Check Role API Error"}
 
-        # အကောင့်မှန်ကန်မှသာ Flow ID ယူပြီး ဆက်လုပ်မည်
         query_data = {
             'user_id': user_id, 'zone_id': zone_id, 'pid': product_id,
             'checkrole': '', 'pay_methond': 'smilecoin', 'channel_method': 'smilecoin', '_csrf': csrf_token
         }
-        
         query_response = scraper.post(query_url, data=query_data, headers=headers)
-        
-        try: 
-            query_result = query_response.json()
-        except Exception: 
-            if "cloudflare" in query_response.text.lower() or "just a moment" in query_response.text.lower():
-                return {"status": "error", "message": "⚠️ Query တွင် Cloudflare မှ Block ထားပါသည်။"}
-            return {"status": "error", "message": f"Query API Error (Status: {query_response.status_code})"}
+        try: query_result = query_response.json()
+        except Exception: return {"status": "error", "message": "Query API Error"}
             
         flowid = query_result.get('flowid') or query_result.get('data', {}).get('flowid')
-        
-        if not flowid:
-            raw_debug = json.dumps(query_result, ensure_ascii=False)
-            real_error = query_result.get('msg') or query_result.get('message') or ""
-            
-            if "login" in str(real_error).lower() or "unauthorized" in str(real_error).lower():
-                return {"status": "error", "message": "⚠️ Cookie သက်တမ်းကုန်သွားပါပြီ။ ကျေးဇူးပြု၍ `/setcookie` ဖြင့် အသစ်ထည့်ပါ။"}
-            else:
-                err_text = real_error if real_error else "အကောင့်ရှာမတွေ့ပါ သို့မဟုတ် ငြင်းပယ်ခံရသည်။"
-                return {"status": "error", "message": f"Smile.one ၏ တုံ့ပြန်ချက်: {err_text}\n\n*(Debug: {raw_debug})*"}
-
-        current_balances = get_smile_balance(scraper, headers, balance_url)
+        if not flowid: return {"status": "error", "message": "Smile.one ၏ တုံ့ပြန်ချက် ငြင်းပယ်ခံရသည်။"}
 
         pay_data = {
             '_csrf': csrf_token, 'user_id': user_id, 'zone_id': zone_id, 'pay_methond': 'smilecoin',
@@ -258,18 +236,21 @@ def process_smile_one_order(user_id, zone_id, product_id, currency_name):
         real_order_id = "ရှာမတွေ့ပါ"
         is_success = False
 
-        api_params = {'type': 'orderlist', 'p': '1', 'pageSize': '5'}
+        # 🌟 (၂) Order ID ထပ်တာကို ကာကွယ်ရန် စစ်ဆေးခြင်း
         try:
+            api_params = {'type': 'orderlist', 'p': '1', 'pageSize': '5'}
             hist_res = scraper.get(order_api_url, params=api_params, headers=headers)
             hist_json = hist_res.json()
             
             if 'list' in hist_json and isinstance(hist_json['list'], list) and len(hist_json['list']) > 0:
                 for order in hist_json['list']:
                     if str(order.get('user_id')) == str(user_id) and str(order.get('server_id')) == str(zone_id):
-                        if str(order.get('order_status', '')).lower() == 'success' or str(order.get('status')) == '1':
-                            real_order_id = str(order.get('increment_id', "ရှာမတွေ့ပါ"))
-                            is_success = True
-                            break
+                        check_order_id = str(order.get('increment_id', "ရှာမတွေ့ပါ"))
+                        if check_order_id not in seen_order_ids: # အရင် Order ID တွေနဲ့ မတူမှသာ ယူမည်
+                            if str(order.get('order_status', '')).lower() == 'success' or str(order.get('status')) == '1':
+                                real_order_id = check_order_id
+                                is_success = True
+                                break
         except Exception as e:
             pass
 
@@ -278,26 +259,17 @@ def process_smile_one_order(user_id, zone_id, product_id, currency_name):
                 pay_json = pay_response.json()
                 code = str(pay_json.get('code', ''))
                 status = str(pay_json.get('status', ''))
-                msg = str(pay_json.get('msg', '')).lower()
-                if code in ['200', '0', '1'] or status in ['200', '0', '1'] or msg in ['success', 'ok', 'sucesso'] or 'success' in pay_text:
+                if code in ['200', '0', '1'] or status in ['200', '0', '1']:
                     is_success = True
-            except:
-                if 'success' in pay_text or 'ok' in pay_text or 'sucesso' in pay_text:
-                    is_success = True
+            except: pass
 
         if is_success:
             return {"status": "success", "ig_name": ig_name, "order_id": real_order_id, "balances": current_balances}
         else:
-            err_msg = "ငွေချေမှု မအောင်မြင်ပါ။"
-            try:
-                err_json = pay_response.json()
-                raw_pay_debug = json.dumps(err_json, ensure_ascii=False)
-                if 'msg' in err_json: 
-                    err_msg = f"ငွေချေမှု မအောင်မြင်ပါ။ ({err_json['msg']})\n\n*(Debug: {raw_pay_debug})*"
-            except: pass
-            return {"status": "error", "message": err_msg}
+            return {"status": "error", "message": "ငွေချေမှု မအောင်မြင်ပါ။ (Order သမိုင်းတွင် မတွေ့ပါ)"}
 
     except Exception as e: return {"status": "error", "message": f"System Error: {str(e)}"}
+
 
 
 # ==========================================
@@ -692,12 +664,12 @@ def handle_check_role(message):
 
 
 # ==========================================
-# 8. COMMAND HANDLER (Multi-line / WP Combo)
+# 8. COMMAND HANDLER (MSC Auto Region Detect)
 # ==========================================
-@bot.message_handler(func=lambda message: re.match(r"(?i)^(br|bro|ph|pho)\s+\d+", message.text.strip()))
+@bot.message_handler(func=lambda message: re.match(r"(?i)^msc\s+\d+", message.text.strip()))
 def handle_direct_buy(message):
     if not is_authorized(message):
-        return bot.reply_to(message, f"❌ သင့်တွင် ဤ Bot ကို အသုံးပြုခွင့် မရှိပါ။", parse_mode="Markdown")
+        return bot.reply_to(message, f"❌ သင့်တွင် ဤ Bot ကို အသုံးပြုခွင့် မရှိပါ။")
 
     try:
         lines = message.text.strip().split('\n')
@@ -708,34 +680,32 @@ def handle_direct_buy(message):
             line = line.strip()
             if not line: continue 
                 
-            match = re.search(r"(?i)^(br|bro|ph|pho)\s*(\d+)\s*\(\s*(\d+)\s*\)\s*([a-zA-Z0-9]+)", line)
+            # msc 123456789 (12345) 11 ကို ဖတ်ရန်
+            match = re.search(r"(?i)^msc\s+(\d+)\s*\(\s*(\d+)\s*\)\s*([a-zA-Z0-9_]+)", line)
             if not match:
-                bot.reply_to(message, f"❌ Format မှားယွင်းနေပါသည်: `{line}`\n(ဥပမာ - br 12345678 (1234) wp)", parse_mode="Markdown")
+                bot.reply_to(message, f"❌ Format မှားယွင်းနေပါသည်: `{line}`\n(ဥပမာ - msc 12345678 (1234) 11)")
                 continue
                 
-            command_prefix = match.group(1)
-            game_id = match.group(2)
-            zone_id = match.group(3)
-            item_input = match.group(4).lower() 
+            game_id = match.group(1)
+            zone_id = match.group(2)
+            item_input = match.group(3).lower() 
             
-            if command_prefix and command_prefix.lower() in ['ph', 'pho']:
-                currency_name = 'PH'
-                active_packages = PH_PACKAGES
-                used_balance_key = 'ph_balance'
-                display_prefix = command_prefix.lower()
-            else:
+            # Region ကို Auto ခွဲခြားခြင်း
+            if item_input in BR_PACKAGES:
                 currency_name = 'BR'
                 active_packages = BR_PACKAGES
                 used_balance_key = 'br_balance'
-                display_prefix = command_prefix.lower() if command_prefix else 'br'
-            
-            if item_input not in active_packages:
+            elif item_input in PH_PACKAGES:
+                currency_name = 'PH'
+                active_packages = PH_PACKAGES
+                used_balance_key = 'ph_balance'
+            else:
                 bot.reply_to(message, f"❌ ရွေးချယ်ထားသော '{item_input}' အတွက် Package မရှိပါ။")
                 continue
                 
             items_to_buy = active_packages[item_input]
             
-            loading_msg = bot.reply_to(message, f"⏳ `{display_prefix} {game_id} ({zone_id}) {item_input}` အတွက် Order တင်နေပါသည်...", parse_mode="Markdown")
+            loading_msg = bot.reply_to(message, f"⏳ `msc {game_id} ({zone_id}) {item_input}` အတွက် Order တင်နေပါသည်...", parse_mode="Markdown")
             
             order_ids_str = ""
             total_price = 0.0
@@ -746,11 +716,13 @@ def handle_direct_buy(message):
             error_msg = ""
             first_order = True
             
+            seen_order_ids = [] # Duplicate မဖြစ်အောင် သိမ်းထားမည့် List
+            
             for item in items_to_buy:
                 product_id = item['pid']
                 item_price = item['price']
                 
-                result = process_smile_one_order(game_id, zone_id, product_id, currency_name)
+                result = process_smile_one_order(game_id, zone_id, product_id, currency_name, item_price, seen_order_ids)
                 
                 if result['status'] == 'success':
                     if first_order:
@@ -760,8 +732,10 @@ def handle_direct_buy(message):
                     
                     success_count += 1
                     total_price += item_price
-                    order_ids_str += f"Order ID:\n{result['order_id']}\n"
-                    time.sleep(1)
+                    seen_order_ids.append(result['order_id']) # အောင်မြင်သွားတဲ့ ID ကို မှတ်ထားမည်
+                    order_ids_str += f"`{result['order_id']}`\n"
+                        
+                    time.sleep(random.randint(5, 8)) 
                 else:
                     fail_count += 1
                     error_msg = result['message']
@@ -772,12 +746,12 @@ def handle_direct_buy(message):
                 date_str = now.strftime("%m/%d/%Y, %I:%M:%S %p")
                 final_used_balance = initial_used_balance - total_price
                 
-                report = f"{display_prefix} {game_id} ({zone_id}) {item_input}\n"
+                report = f"msc {game_id} ({zone_id}) {item_input}\n"
                 report += "=== ᴛʀᴀɴsᴀᴄᴛɪᴏɴ ʀᴇᴘᴏʀᴛ ===\n\n"
                 report += "ᴏʀᴅᴇʀ sᴛᴀᴛᴜs: ✅ Sᴜᴄᴄᴇss\n"
                 report += f"ɢᴀᴍᴇ ɪᴅ: {game_id} {zone_id}\n"
                 report += f"ɪɢ ɴᴀᴍᴇ: {ig_name}\n"
-                report += order_ids_str
+                report += f"ᴏʀᴅᴇʀ ɪᴅ:\n{order_ids_str}"
                 report += f"ɪᴛᴇᴍ: {item_input} 💎\n"
                 report += f"ᴛᴏᴛᴀʟ ᴀᴍᴏᴜɴᴛ: {total_price:.2f} 🪙\n\n"
                 report += f"ᴅᴀᴛᴇ: {date_str}\n"
@@ -785,7 +759,7 @@ def handle_direct_buy(message):
                 report += f"ᴛᴏᴛᴀʟ sᴘᴇɴᴛ: ${total_price:.2f}\n"
                 report += f"ɪɴɪᴛɪᴀʟ ʙᴀʟᴀɴᴄᴇ ({currency_name}): ${initial_used_balance:,.2f}\n"
                 report += f"ғɪɴᴀʟ ʙᴀʟᴀɴᴄᴇ ({currency_name}): ${final_used_balance:,.2f}\n\n"
-                report += f"sᴜᴄᴄᴇss {success_count} / Fail {fail_count}" 
+                report += f"Sᴜᴄᴄᴇss {success_count} / Fᴀɪʟ {fail_count}" 
 
                 bot.edit_message_text(chat_id=message.chat.id, message_id=loading_msg.message_id, text=report)
                 
@@ -796,6 +770,7 @@ def handle_direct_buy(message):
 
     except Exception as e:
         bot.reply_to(message, f"System Error: {str(e)}")
+
 
 # ==========================================
 # 9. START BOT / DEFAULT COMMAND
