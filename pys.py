@@ -9,6 +9,7 @@ import time
 from dotenv import load_dotenv
 import threading
 import random
+import HTML
 
 # ==========================================
 # 📌 ENVIRONMENT VARIABLES
