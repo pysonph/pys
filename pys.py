@@ -37,12 +37,12 @@ DB_FILE = 'database.json'
 
 def load_data():
     if not os.path.exists(DB_FILE):
-        return {"users": [OWNER_ID], "cookie": "PHPSESSID=ad910q8i87smccj3vbtq8tnuce"}
+        return {"users": [OWNER_ID], "cookie": "PHPSESSID=deerfdnkcsnsi5hu8m8l6gctbi"}
     try:
         with open(DB_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     except Exception:
-        return {"users": [OWNER_ID], "cookie": "PHPSESSID=ad910q8i87smccj3vbtq8tnuce"}
+        return {"users": [OWNER_ID], "cookie": "PHPSESSID=deerfdnkcsnsi5hu8m8l6gctbi"}
 
 def save_data(data):
     try:
