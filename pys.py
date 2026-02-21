@@ -1006,7 +1006,7 @@ def handle_mcc_buy(message):
                     seen_order_ids.append(new_id)
                     order_ids_str += f"{new_id}\n" 
                     
-                    time.sleep(random.randint(5, 8)) 
+                    time.sleep(random.randint(2, 5)) 
                 else:
                     fail_count += 1
                     error_msg = result['message']
